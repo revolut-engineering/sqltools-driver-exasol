@@ -1,0 +1,55 @@
+{
+  "name": "exasol-driver",
+  "displayName": "Exasol Driver",
+  "description": "Exasol Driver for SQLTools",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.42.0"
+  },
+  "publisher": "Revolut",
+  "license": "MIT",
+  "repository": {},
+  "bugs": {},
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "keywords": [
+    "exasol-driver",
+    "sqltools-driver"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters",
+    "Other"
+  ],
+  "extensionDependencies": [
+    "mtxr.sqltools"
+  ],
+  "activationEvents": [
+    "*",
+    "onLanguage:sql",
+    "onCommand:sqltools.*"
+  ],
+  "main": "./out/extension.js",
+  "dependencies": {
+    "@sqltools/base-driver": "^0.1.10",
+    "@sqltools/types": "^0.1.5",
+    "@types/lodash": "^4.14.161",
+    "@types/promise-queue": "^2.2.0",
+    "@types/websocket": "^1.0.1",
+    "lodash": "^4.17.20",
+    "promise-queue": "^2.2.5",
+    "uuid": "^7.0.2",
+    "vsce": "^1.79.5",
+    "websocket": "^1.0.32"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.11.5",
+    "@types/node": "^14.6.2",
+    "@types/vscode": "^1.42.0",
+    "typescript": "^3.7.3"
+  }
+}

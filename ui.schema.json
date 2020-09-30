@@ -1,0 +1,4 @@
+{
+  "ui:order": ["server", "port", "username", "password", "autocommit", "queryTimeout"],
+  "password": { "ui:widget": "password" }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "server": {
+      "title": "Host",
+      "type": "string",
+      "minLength": 1
+    },
+    "port": {
+      "title": "Port",
+      "type": "integer",
+      "default": 8888
+    },
+    "username" : {
+      "title": "Username",
+      "type": "string",
+      "minLength": 1
+    },
+    "password": {
+      "title": "Password",
+      "type": "string",
+      "minLength": 1
+    },
+    "autocommit": {
+      "title": "Auto-commit",
+      "type": "boolean",
+      "default": true
+    },
+    "queryTimeout": {
+      "title": "Query timeout (seconds)",
+      "type": "integer",
+      "default": 180
+    }
+  },
+  "required": [
+    "server",
+    "port",
+    "username",
+    "password",
+    "autocommit",
+    "queryTimeout"
+  ]
+}
