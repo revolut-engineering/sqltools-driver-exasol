@@ -40,3 +40,4 @@ jobs:
       with:
         files: 'exasol-driver-*.vsix'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
+        release-tag: ${{ github.ref }}
