@@ -25,14 +25,18 @@ jobs:
       uses: lannonbr/vsce-action@master
       with:
         args: "package"
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+      shell: bash
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        release_name: Release ${{ steps.get_version.outputs.VERSION }}
         draft: false
         prerelease: false
     - name: Upload Release Asset
@@ -40,4 +44,4 @@ jobs:
       with:
         files: 'exasol-driver-*.vsix'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-        release-tag: ${{ github.ref }}
+        release-tag: ${{ steps.get_version.outputs.VERSION }}
