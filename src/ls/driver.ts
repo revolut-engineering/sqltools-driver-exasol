@@ -180,7 +180,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
       case ContextValue.VIEW:
         return this.queryResults(this.queries.searchTables({ search }));
       case ContextValue.COLUMN:
-        if (_extraParams.tables?.length > 0) {
+        if (_extraParams.tables && _extraParams.tables.length > 0) {
           return this.queryResults(this.queries.searchColumns({ search, tables: _extraParams.tables || [] }));
         } else {
           return [];
