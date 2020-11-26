@@ -32,6 +32,8 @@ ${SNAPSHOT_EXEC} select
   '${ContextValue.SCHEMA}' as 'type'
 from
   "EXA_ALL_SCHEMAS"
+order by
+  "SCHEMA_NAME"
 `;
 
 const fetchRecords: IBaseQueries['fetchRecords'] = queryFactory`
@@ -63,6 +65,8 @@ from
   "EXA_ALL_TABLES"
 where
   "TABLE_SCHEMA" = '${p => p.schema}'
+order by
+  "TABLE_NAME"
 `;
 
 const fetchViews: IBaseQueries['fetchTables'] = queryFactory`
@@ -75,6 +79,8 @@ from
   "EXA_ALL_VIEWS"
 where
   "VIEW_SCHEMA" = '${p => p.schema}'
+order by
+  "VIEW_NAME"
 `;
 
 // Search is used for autocomplete. In the context of Tables, Views are also relevant.
