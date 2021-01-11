@@ -1,6 +1,6 @@
 import AbstractDriver from '@sqltools/base-driver';
 import queries from './queries';
-import { IConnectionDriver, MConnectionExplorer, NSDatabase, ContextValue, Arg0 } from '@sqltools/types';
+import { IConnectionDriver, MConnectionExplorer, NSDatabase, ContextValue, Arg0, IExpectedResult } from '@sqltools/types';
 import { v4 as generateId } from 'uuid';
 import PromiseQueue from 'promise-queue'
 // TODO get `parse` object from NPM once sqltools makes it available, if ever
@@ -8,6 +8,7 @@ import parse from './parse';
 import { zipObject, range } from 'lodash';
 import Exasol from './wsjsapi';
 import keywordsCompletion from './keywords';
+import LRUCache from 'lru-cache';
 
 // DriverLib type is any since the connection object obtained from Exasol is a plain JS object
 type DriverLib = any;
@@ -19,6 +20,9 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
   queries = queries;
 
   private queue = new PromiseQueue(1, Infinity);
+
+  // 100 queries, max age 1 minute
+  private cache = new LRUCache({ max: 100, maxAge: 1000*60 });
 
   // Wraps an error callback to ensure that it send an Error object, which SQLTools is expecting
   private rejectErr = (reject) => err => reject(
@@ -62,9 +66,9 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     this.connection = null;
   }
 
-  public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
+  public query: (typeof AbstractDriver)['prototype']['query'] = async (queries: string, opt = {}) => {
     const db = await this.open();
-    const splitQueries = parse(queries as string);
+    const splitQueries = parse(queries);
 
     const responseData: any = await this.queue.add(
       () => new Promise(
@@ -142,7 +146,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     switch (item.type) {
       case ContextValue.CONNECTION:
       case ContextValue.CONNECTED_CONNECTION:
-        return this.queryResults(this.queries.fetchSchemas());
+        return this.cachedQuery(this.queries.fetchSchemas());
       case ContextValue.SCHEMA:
         return <MConnectionExplorer.IChildItem[]>[
           { label: 'Tables', type: ContextValue.RESOURCE_GROUP, schema: parent.schema, iconId: 'folder', childType: ContextValue.TABLE },
@@ -152,7 +156,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
         return this.getChildrenForGroup({ item, parent });
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        return this.queryResults(this.queries.fetchColumns(item as NSDatabase.ITable));
+        return this.cachedQuery(this.queries.fetchColumns(item as NSDatabase.ITable));
     }
     return [];
   }
@@ -164,9 +168,9 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
   private async getChildrenForGroup({ item, parent }: Arg0<IConnectionDriver['getChildrenForItem']>) {
     switch (item.childType) {
       case ContextValue.TABLE:
-        return this.queryResults(this.queries.fetchTables(parent as NSDatabase.ISchema));
+        return this.cachedQuery(this.queries.fetchTables(parent as NSDatabase.ISchema));
       case ContextValue.VIEW:
-        return this.queryResults(this.queries.fetchViews(parent as NSDatabase.ISchema));
+        return this.cachedQuery(this.queries.fetchViews(parent as NSDatabase.ISchema));
     }
     return [];
   }
@@ -178,10 +182,10 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     switch (itemType) {
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        return this.queryResults(this.queries.searchTables({ search }));
+        return this.cachedQuery(this.queries.searchTables({ search, schema: _extraParams.database }));
       case ContextValue.COLUMN:
         if (_extraParams.tables && _extraParams.tables.length > 0) {
-          return this.queryResults(this.queries.searchColumns({ search, tables: _extraParams.tables || [] }));
+          return this.cachedQuery(this.queries.searchColumns({ search, tables: _extraParams.tables || [] }));
         } else {
           return [];
         }
@@ -191,5 +195,15 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
 
   public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
     return keywordsCompletion;
+  }
+
+  private cachedQuery<R>(query: IExpectedResult<R>): Promise<R[]> {
+    const results = this.cache.get(query.toString()) as R[];
+    if (results) {
+      return Promise.resolve(results);
+    }
+    const resultsPromise = this.queryResults(query);
+    resultsPromise.then(res => this.cache.set(query.toString(), res));
+    return resultsPromise;
   }
 }
