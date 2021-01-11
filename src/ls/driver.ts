@@ -21,8 +21,8 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
 
   private queue = new PromiseQueue(1, Infinity);
 
-  // 100 queries, max age 1 minute
-  private cache = new LRUCache({ max: 100, maxAge: 1000*60 });
+  // 100 queries, max age in ms (10 minutes)
+  private cache = new LRUCache({ max: 100, maxAge: 1000*60*10 });
 
   // Wraps an error callback to ensure that it send an Error object, which SQLTools is expecting
   private rejectErr = (reject) => err => reject(
