@@ -1,4 +1,5 @@
 import { NSDatabase } from '@sqltools/types';
+import { CompletionItem } from 'vscode-languageserver-types';
 
 // From the EXA_SQL_KEYWORDS table
 const keywordsArr = [
@@ -816,7 +817,7 @@ const keywordsArr = [
 const firstKeywords = ['SELECT', 'CREATE', 'UPDATE', 'DELETE', 'WITH'];
 
 const keywordsCompletion: { [w: string]: NSDatabase.IStaticCompletion } = keywordsArr.reduce((agg, word) => {
-    agg[`"${word}"`] = {
+    agg[`"${word}"`] = <CompletionItem>{
         label: word,
         detail: word,
         filterText: word,
