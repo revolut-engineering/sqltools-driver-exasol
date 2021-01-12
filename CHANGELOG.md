@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.0.4
+
+Provide schema suggestions in autocomplete
 
 ## 0.0.3
 
