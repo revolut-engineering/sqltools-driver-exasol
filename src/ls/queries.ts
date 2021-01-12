@@ -1,4 +1,4 @@
-import { IBaseQueries, ContextValue } from '@sqltools/types';
+import { IBaseQueries, ContextValue, QueryBuilder, NSDatabase } from '@sqltools/types';
 import queryFactory from '@sqltools/base-driver/dist/lib/factory';
 
 
@@ -84,27 +84,40 @@ order by
 `;
 
 // Search is used for autocomplete. In the context of Tables, Views are also relevant.
+const searchSchemas: QueryBuilder<{ search: string }, NSDatabase.ISchema> = queryFactory`
+${SNAPSHOT_EXEC} select
+  "SCHEMA_NAME" as 'label',
+  '${ContextValue.SCHEMA}' as 'type',
+  true as 'isView'
+from
+  "EXA_ALL_SCHEMAS"
+where
+  lower("SCHEMA_NAME") like '%${p => p.search.toLowerCase()}%'
+`
+
 const searchTables: IBaseQueries['searchTables'] = queryFactory`
 ${SNAPSHOT_EXEC} select
-  "VIEW_SCHEMA" || '.' || "VIEW_NAME" as 'label',
+  "VIEW_NAME" as 'label',
   "VIEW_SCHEMA" as 'schema',
   '${ContextValue.VIEW}' as 'type',
   true as 'isView'
 from
   "EXA_ALL_VIEWS"
 where
+  "VIEW_SCHEMA" = '${p => p.schema}' and
   lower("VIEW_NAME") like '%${p => p.search.toLowerCase()}%'
 
 union all
 
 select
-  "TABLE_SCHEMA" || '.' || "TABLE_NAME" as 'label',
+  "TABLE_NAME" as 'label',
   "TABLE_SCHEMA" as 'schema',
   '${ContextValue.TABLE}' as 'type',
   false as 'isView'
 from
   "EXA_ALL_TABLES"
 where
+  "TABLE_SCHEMA" = '${p => p.schema}' and
   lower("TABLE_NAME") like '%${p => p.search.toLowerCase()}%'
 
 `;
@@ -137,6 +150,7 @@ export default {
   fetchTables,
   fetchViews,
   searchTables,
+  searchSchemas,
   searchColumns,
   // Unused but required by the interface
   describeTable,  // Undef

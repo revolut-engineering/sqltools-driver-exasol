@@ -180,9 +180,13 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
     switch (itemType) {
+      case ContextValue.DATABASE:
+        return this.cachedQuery(this.queries.searchSchemas({ search }));
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        return this.cachedQuery(this.queries.searchTables({ search, schema: _extraParams.database }));
+        if (_extraParams.database) {
+          return this.cachedQuery(this.queries.searchTables({ search, schema: _extraParams.database }));
+        }
       case ContextValue.COLUMN:
         if (_extraParams.tables && _extraParams.tables.length > 0) {
           return this.cachedQuery(this.queries.searchColumns({ search, tables: _extraParams.tables || [] }));
