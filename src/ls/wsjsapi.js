@@ -508,7 +508,7 @@ var Exasol = function(url, user, pass, onconnect, onerror) {
                                      "useCompression": false,
                                      "clientName": "EXAJS",
                                      "driverName": "WS",
-                                     "clientOs": "Browser",
+                                     "clientOs": os.type(),
                                      "clientOsUsername": os.userInfo().username,
                                      "clientVersion": "0.1",
                                      "clientRuntime": "Browser"},
