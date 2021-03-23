@@ -3,6 +3,7 @@
 
 import { w3cwebsocket as WebSocket } from 'websocket'
 import jsbn from './jsbn';
+import os from 'os';
 
 // This version of json parsing doesn't parse numbers into JS Numbers, to avoid loss of precision
 var json_parse = (function () {
@@ -507,8 +508,8 @@ var Exasol = function(url, user, pass, onconnect, onerror) {
                                      "useCompression": false,
                                      "clientName": "EXAJS",
                                      "driverName": "WS",
-                                     "clientOs": "Browser",
-                                     "clientOsUsername": "N/A",
+                                     "clientOs": os.type(),
+                                     "clientOsUsername": os.userInfo().username,
                                      "clientVersion": "0.1",
                                      "clientRuntime": "Browser"},
                                     function(response) {
