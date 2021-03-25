@@ -5,7 +5,7 @@ import { v4 as generateId } from 'uuid';
 import PromiseQueue from 'promise-queue'
 // TODO get `parse` object from NPM once sqltools makes it available, if ever
 import parse from './parse';
-import { zipObject, range } from 'lodash';
+import { zipObject, range, Dictionary } from 'lodash';
 import Exasol from './wsjsapi';
 import keywordsCompletion from './keywords';
 import LRUCache from 'lru-cache';
@@ -14,6 +14,38 @@ import LRUCache from 'lru-cache';
 type DriverLib = any;
 type DriverOptions = any;
 
+// Types returned by the driver
+// Numbers are strings, because JS string to number conversion is lossy for large numbers
+type QueryData = any[][];
+type QueryColumn = {
+  name: string
+}
+type QueryResultSet = {
+  columns: QueryColumn[]
+  numColumns: string
+  numRows: string
+  numRowsInMessage: string
+  data: QueryData
+  resultSetHandle?: string
+}
+type QueryResult = {
+  resultType: string
+  resultSet?: QueryResultSet
+  rowCount?: string
+}
+type QueryResponse = {
+  numResults: string
+  results: QueryResult[]
+}
+type QueryFetchResult = {
+  numRows: string
+  data: QueryData
+}
+
+const MAX_RESULTS = 1000 // rows
+const FETCH_SIZE = 1000000 // 1MiB (bytes)
+const QUERY_CACHE_SIZE = 100 // queries count
+const QUERY_CACHE_AGE = 1000 * 60 * 10 // 10 minutes (ms)
 
 export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOptions> implements IConnectionDriver {
 
@@ -21,8 +53,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
 
   private queue = new PromiseQueue(1, Infinity);
 
-  // 100 queries, max age in ms (10 minutes)
-  private cache = new LRUCache({ max: 100, maxAge: 1000*60*10 });
+  private cache = new LRUCache({ max: QUERY_CACHE_SIZE, maxAge: QUERY_CACHE_AGE });
 
   // Wraps an error callback to ensure that it send an Error object, which SQLTools is expecting
   private rejectErr = (reject) => err => reject(
@@ -59,6 +90,15 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     return this.connection;
   }
 
+  private columnarToRows(rowCount: number, columns: string[], columnarData: QueryData): Dictionary<any>[] {
+    return range(rowCount).map(
+      index => zipObject(
+        columns,
+        columnarData.map(values => values[index])
+      )
+    )
+  }
+
   public async close() {
     if (!this.connection) return Promise.resolve();
 
@@ -70,7 +110,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     const db = await this.open();
     const splitQueries = parse(queries);
 
-    const responseData: any = await this.queue.add(
+    const responseData: QueryResponse = await this.queue.add(
       () => new Promise(
         (resolve, reject) => db.com({ 'command': 'executeBatch', 'sqlTexts': splitQueries },
           resolve,
@@ -91,36 +131,42 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
           resultId: generateId(),
         });
       } else if (result.resultType === 'resultSet') {
+        const columns = result.resultSet.columns.map(column => column.name)
+        const queryResults = this.columnarToRows(+result.resultSet.numRowsInMessage, columns, result.resultSet.data)
+        const queryResultCount = +result.resultSet.numRows
         if (result.resultSet.resultSetHandle !== undefined) {
-          result.resultSet = await this.queue.add(
-            () => new Promise(
-              (resolve, reject) => db.fetch(result.resultSet, 0, 100000, resolve, this.rejectErr(reject))
-            )
-          );
+          const handle = +result.resultSet.resultSetHandle
+          const expectedResults = Math.min(MAX_RESULTS, queryResultCount)
+          while (queryResults.length < expectedResults) {
+            const fetchResult: QueryFetchResult = await this.queue.add(
+              () => new Promise(
+                (resolve, reject) => db.fetch(handle, queryResults.length, FETCH_SIZE, resolve, this.rejectErr(reject))
+              )
+            );
+            queryResults.push(...this.columnarToRows(+fetchResult.numRows, columns, fetchResult.data))
+          }
+          queryResults.length = expectedResults // Truncate to a round number (1000) so it's clear not everything is there
           await this.queue.add(
             () => new Promise(
-              // resultSetHandle is expected to be a number, but `executeCommand` doesn't return a number
-              (resolve, reject) => db.com({ 'command': 'closeResultSet', 'resultSetHandles': [+result.resultSet.resultSetHandle] },
+              (resolve, reject) => db.com({ 'command': 'closeResultSet', 'resultSetHandles': [handle] },
                 resolve,
                 this.rejectErr(reject))
             )
           );
         }
-        const columns = result.resultSet.columns.map(column => column.name)
-        res.push(<NSDatabase.IResult>{
+        const message = `Query ok with ${queryResultCount} results`
+          + (queryResultCount == queryResults.length ? `` : `. ${queryResults.length} rows displayed.`)
+        res.push({
           cols: columns,
           connId: this.getId(),
-          messages: [{ date: new Date(), message: `Query ok with ${result.resultSet.numRowsInMessage} results` }],
-          results: range(result.resultSet.numRowsInMessage).map(
-            index =>
-              zipObject(
-                columns,
-                result.resultSet.data.map(columnValues => columnValues[index])
-              )
-          ),
+          messages: [{ date: new Date(), message: message }],
+          results: queryResults,
           query: splitQueries[index].toString(),
           requestId: opt.requestId,
           resultId: generateId(),
+          page: 0,
+          total: queryResults.length,
+          pageSize: queryResults.length
         })
       } else {
         throw new Error(`Invalid result type ${result}`);

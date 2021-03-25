@@ -479,16 +479,13 @@ var Exasol = function(url, user, pass, onconnect, onerror) {
         context.connection.send(reqdata);
     };
 
-    context.fetch = function(res, startPosition, numBytes, onResponse, onerror) {
+    context.fetch = function(resultSetHandle, startPosition, numBytes, onresponse, onerror) {
         context.com({'command': 'fetch',
-                     'resultSetHandle': +res.resultSetHandle,
+                     'resultSetHandle': +resultSetHandle,
                      'startPosition': +startPosition,
                      'numBytes': +numBytes},
-                    function(rep) {
-                        res.data = rep.data;
-                        res.numRowsInMessage = rep.numRows;
-                        onResponse(res);
-                    }, onerror || context.onerror);
+                    onresponse,
+                    onerror || context.onerror);
     };
 
     context.inwork = false;
