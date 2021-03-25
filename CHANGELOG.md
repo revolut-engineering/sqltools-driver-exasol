@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.0.6
+
+Fix pagination, fetch up to 1000 records from queries
+
 ## 0.0.5
 
 Add OS and OS user name to connection metadata
