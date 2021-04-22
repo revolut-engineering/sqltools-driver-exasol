@@ -70,7 +70,8 @@ export default class ExasolDriver extends AbstractDriver<DriverLib, DriverOption
     this.log.info(`Opening connection to ${this.credentials.server}:${this.credentials.port}`);
 
     this.connection = await new Promise<any>((resolve, reject) =>
-      Exasol(`ws://${this.credentials.server}:${this.credentials.port}`, this.credentials.username, this.credentials.password,
+      Exasol.call({}, // we must pass a new thisArg object each time as connection state is kept there and we might spawn multiple connections
+        `ws://${this.credentials.server}:${this.credentials.port}`, this.credentials.username, this.credentials.password,
         resolve,
         this.rejectErr(reject))
     ).then(db =>
@@ -139,7 +140,6 @@ export default class ExasolDriver extends AbstractDriver<DriverLib, DriverOption
         if (result.resultSet.resultSetHandle !== undefined) {
           const handle = +result.resultSet.resultSetHandle
           const expectedResults = opt.fullResults ? queryResultCount : Math.min(MAX_RESULTS, queryResultCount)
-          this.log.info(`expectedResults: ${expectedResults}`);
           while (queryResults.length < expectedResults) {
             const fetchResult: QueryFetchResult = await this.queue.add(
               () => new Promise(
