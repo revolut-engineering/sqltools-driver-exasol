@@ -47,7 +47,7 @@ const FETCH_SIZE = 1000000 // 1MiB (bytes)
 const QUERY_CACHE_SIZE = 100 // queries count
 const QUERY_CACHE_AGE = 1000 * 60 * 10 // 10 minutes (ms)
 
-export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOptions> implements IConnectionDriver {
+export default class ExasolDriver extends AbstractDriver<DriverLib, DriverOptions> implements IConnectionDriver {
 
   queries = queries;
 
@@ -67,7 +67,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
       return this.connection;
     }
 
-    console.debug(`Opening connection to ${this.credentials.server}:${this.credentials.port}`);
+    this.log.info(`Opening connection to ${this.credentials.server}:${this.credentials.port}`);
 
     this.connection = await new Promise<any>((resolve, reject) =>
       Exasol(`ws://${this.credentials.server}:${this.credentials.port}`, this.credentials.username, this.credentials.password,
@@ -85,7 +85,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
           this.rejectErr(reject))
       ).then(() => db) // db is ready and attributes are set
     );
-    console.debug(`Connected to ${this.credentials.host}`, this.connection);
+    this.log.info(`Connected to ${this.credentials.name}`);
 
     return this.connection;
   }
@@ -101,7 +101,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
 
   public async close() {
     if (!this.connection) return Promise.resolve();
-
+    this.log.info(`Closing connection to ${this.credentials.name}`);
     (await this.connection).close();
     this.connection = null;
   }
@@ -121,10 +121,12 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     for (let index = 0; index < responseData.results.length; index++) {
       const result = responseData.results[index];
       if (result.resultType === 'rowCount') {
+        const message = `Query ok with ${result.rowCount} rows affected`
+        this.log.info(message)
         res.push(<NSDatabase.IResult>{
           cols: [],
           connId: this.getId(),
-          messages: [{ date: new Date(), message: `Query ok with ${result.rowCount} rows affected` }],
+          messages: [{ date: new Date(), message: message }],
           results: [],
           query: splitQueries[index].toString(),
           requestId: opt.requestId,
@@ -136,7 +138,8 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
         const queryResultCount = +result.resultSet.numRows
         if (result.resultSet.resultSetHandle !== undefined) {
           const handle = +result.resultSet.resultSetHandle
-          const expectedResults = Math.min(MAX_RESULTS, queryResultCount)
+          const expectedResults = opt.fullResults ? queryResultCount : Math.min(MAX_RESULTS, queryResultCount)
+          this.log.info(`expectedResults: ${expectedResults}`);
           while (queryResults.length < expectedResults) {
             const fetchResult: QueryFetchResult = await this.queue.add(
               () => new Promise(
@@ -156,6 +159,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
         }
         const message = `Query ok with ${queryResultCount} results`
           + (queryResultCount == queryResults.length ? `` : `. ${queryResults.length} rows displayed.`)
+        this.log.info(message)
         res.push({
           cols: columns,
           connId: this.getId(),
@@ -192,7 +196,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     switch (item.type) {
       case ContextValue.CONNECTION:
       case ContextValue.CONNECTED_CONNECTION:
-        return this.cachedQuery(this.queries.fetchSchemas());
+        return this.cachedQuery(this.queries.fetchSchemas(), true);
       case ContextValue.SCHEMA:
         return <MConnectionExplorer.IChildItem[]>[
           { label: 'Tables', type: ContextValue.RESOURCE_GROUP, schema: parent.schema, iconId: 'folder', childType: ContextValue.TABLE },
@@ -202,7 +206,7 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
         return this.getChildrenForGroup({ item, parent });
       case ContextValue.TABLE:
       case ContextValue.VIEW:
-        return this.cachedQuery(this.queries.fetchColumns(item as NSDatabase.ITable));
+        return this.cachedQuery(this.queries.fetchColumns(item as NSDatabase.ITable), true);
     }
     return [];
   }
@@ -214,9 +218,9 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
   private async getChildrenForGroup({ item, parent }: Arg0<IConnectionDriver['getChildrenForItem']>) {
     switch (item.childType) {
       case ContextValue.TABLE:
-        return this.cachedQuery(this.queries.fetchTables(parent as NSDatabase.ISchema));
+        return this.cachedQuery(this.queries.fetchTables(parent as NSDatabase.ISchema), true);
       case ContextValue.VIEW:
-        return this.cachedQuery(this.queries.fetchViews(parent as NSDatabase.ISchema));
+        return this.cachedQuery(this.queries.fetchViews(parent as NSDatabase.ISchema), true);
     }
     return [];
   }
@@ -247,12 +251,12 @@ export default class YourDriverClass extends AbstractDriver<DriverLib, DriverOpt
     return keywordsCompletion;
   }
 
-  private cachedQuery<R>(query: IExpectedResult<R>): Promise<R[]> {
+  private cachedQuery<R>(query: IExpectedResult<R>, fullResults: boolean = false): Promise<R[]> {
     const results = this.cache.get(query.toString()) as R[];
     if (results) {
       return Promise.resolve(results);
     }
-    const resultsPromise = this.queryResults(query);
+    const resultsPromise = this.queryResults(query, { 'fullResults': fullResults });
     resultsPromise.then(res => this.cache.set(query.toString(), res));
     return resultsPromise;
   }
