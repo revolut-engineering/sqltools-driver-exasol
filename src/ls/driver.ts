@@ -9,6 +9,7 @@ import { zipObject, range, Dictionary } from 'lodash';
 import Exasol from './wsjsapi';
 import keywordsCompletion from './keywords';
 import LRUCache from 'lru-cache';
+import { IClientConfig } from 'websocket';
 
 // DriverLib type is any since the connection object obtained from Exasol is a plain JS object
 type DriverLib = any;
@@ -43,7 +44,7 @@ type QueryFetchResult = {
 }
 
 const MAX_RESULTS = 1000 // rows
-const FETCH_SIZE = 1000000 // 1MiB (bytes)
+const FETCH_SIZE = 4 * 1024 * 1024 // 4MB (bytes)
 const QUERY_CACHE_SIZE = 100 // queries count
 const QUERY_CACHE_AGE = 1000 * 60 * 10 // 10 minutes (ms)
 
@@ -73,7 +74,8 @@ export default class ExasolDriver extends AbstractDriver<DriverLib, DriverOption
       Exasol.call({}, // we must pass a new thisArg object each time as connection state is kept there and we might spawn multiple connections
         `ws://${this.credentials.server}:${this.credentials.port}`, this.credentials.username, this.credentials.password,
         resolve,
-        this.rejectErr(reject))
+        this.rejectErr(reject),
+        <IClientConfig>{ maxReceivedFrameSize: 2 * FETCH_SIZE })
     ).then(db =>
       new Promise((resolve, reject) =>
         db.com({
@@ -111,20 +113,20 @@ export default class ExasolDriver extends AbstractDriver<DriverLib, DriverOption
     const db = await this.open();
     const splitQueries = parse(queries);
 
-    const responseData: QueryResponse = await this.queue.add(
-      () => new Promise(
-        (resolve, reject) => db.com({ 'command': 'executeBatch', 'sqlTexts': splitQueries },
-          resolve,
-          this.rejectErr(reject))
-      )
-    );
-    const res = [];
-    for (let index = 0; index < responseData.results.length; index++) {
-      const result = responseData.results[index];
+    const responses: QueryResponse[] = await Promise.all<QueryResponse>(
+      splitQueries.map((query) => this.queue.add(() =>
+        new Promise((resolve, reject) =>
+          db.com({ 'command': 'execute', 'sqlText': query }, resolve, this.rejectErr(reject))
+        )
+      )));
+
+    const res: NSDatabase.IResult[] = [];
+    for (let index = 0; index < responses.length; index++) {
+      const result = responses[index].results[0];
       if (result.resultType === 'rowCount') {
         const message = `Query ok with ${result.rowCount} rows affected`
         this.log.info(message)
-        res.push(<NSDatabase.IResult>{
+        res.push({
           cols: [],
           connId: this.getId(),
           messages: [{ date: new Date(), message: message }],
