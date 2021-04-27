@@ -3,7 +3,10 @@
 
 ## 0.0.7
 
-Fix websocket max message size leading to broken fetches, switch away from batch mode
+Fix websocket max message size leading to broken fetches
+Switch away from batch mode
+Always show full schema
+Fix issue with global connection state
 
 ## 0.0.6
 
