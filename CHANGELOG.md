@@ -1,5 +1,10 @@
 # Change Log
 
+
+## 0.0.7
+
+Fix websocket max message size leading to broken fetches, switch away from batch mode
+
 ## 0.0.6
 
 Fix pagination, fetch up to 1000 records from queries
