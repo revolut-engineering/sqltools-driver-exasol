@@ -1,5 +1,13 @@
 # Change Log
 
+
+## 0.0.7
+
+Fix websocket max message size leading to broken fetches
+Switch away from batch mode
+Always show full schema
+Fix issue with global connection state
+
 ## 0.0.6
 
 Fix pagination, fetch up to 1000 records from queries

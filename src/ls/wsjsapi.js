@@ -302,7 +302,7 @@ var json_parse = (function () {
     };
 }());
 
-var Exasol = function(url, user, pass, onconnect, onerror) {
+var Exasol = function(url, user, pass, onconnect, onerror, websocketConfig) {
     var context = this;
     context.onerror = onerror;
     context.sessionId = "-1";
@@ -489,7 +489,7 @@ var Exasol = function(url, user, pass, onconnect, onerror) {
     };
 
     context.inwork = false;
-    context.connection = new WebSocket(url);
+    context.connection = new WebSocket(url, null, null, null, null, websocketConfig);
     context.connection.onerror = function(err) {
         onerror('Error connecting to "' + url + '"');
     };
